@@ -5,24 +5,6 @@ use 5.006;
 use strict;
 use warnings;
 
-=head1 NAME
-
-PID::File::Guard - Provides scope guard to remove the pid file automatically.
-
-=cut
-
-=head1 Methods
-
-=head2 Class Methods
-
-=head3 new
-
- my $guard = PID::File::Guard->new( sub { $pid_file->remove } );
-
-Creates a new guard token that will call the supplied sub when it goes out of scope. 
-
-=cut
-
 sub new
 {
 	my ( $class, $sub ) = @_;
@@ -33,10 +15,7 @@ sub new
 sub DESTROY
 {
 	my $self = shift;
-
 	$self->();
 }
 
-
 1;
-
