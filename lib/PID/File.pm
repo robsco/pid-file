@@ -16,11 +16,11 @@ PID::File - PID files with guarding against exceptions.
 
 =head1 VERSION
 
-Version 0.11
+Version 0.12
 
 =cut
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -215,7 +215,7 @@ sub guard
 	
 	die "Can't create guard in void context" if ! defined wantarray;
 	
-	return PID::File::Guard->new( $self, 'remove' );
+	return PID::File::Guard->new( sub { $self->remove } ); # $self, 'remove' );
 }
 
 =head1 AUTHOR

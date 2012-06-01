@@ -12,14 +12,13 @@ my $file;
 {
 	my $pid_file = PID::File->new;
 
-	my $guard = PID::File::Guard->new( $pid_file, 'remove' );
+	my $guard = PID::File::Guard->new( sub { $pid_file->remove } );
 
 	ok( $pid_file->create, "created pid file ok");
 
 	$file = $pid_file->file;
 		
 	ok( -e $pid_file->file, "pid file ('" . $pid_file->file . "') does exist");
-
 }
 
 ok( ! -e $file, "guard went out of scope and pid file ('" . $file . "') does not exist");

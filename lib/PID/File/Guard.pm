@@ -25,20 +25,18 @@ Creates a new guard token that will call the C<method> on the C<object> when it 
 
 sub new
 {
-	my ( $class, $object, $method ) = @_;
+	my ( $class, $sub ) = @_;
 	die "Can't create guard in void context" if ! defined wantarray;
-	return bless { object => $object, method => $method }, $class;
+	return bless $sub, $class;
 }
 
 sub DESTROY
 {
 	my $self = shift;
-	
-	my $object = $self->{ object } or return;
-	my $method = $self->{ method };
-	
-	$object->$method; 
+
+	$self->();
 }
+
 
 1;
 
