@@ -12,9 +12,9 @@ my $file;
 {
 	my $pid_file = PID::File->new;
 
-	my $guard = PID::File::Guard->new( sub { $pid_file->remove } );
-
 	ok( $pid_file->create, "created pid file ok");
+
+	my $guard = PID::File::Guard->new( sub { $pid_file->remove } );
 
 	$file = $pid_file->file;
 		

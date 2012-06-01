@@ -9,10 +9,10 @@ use PID::File::Guard;
 
 my $pid_file = PID::File->new;
 
-my $guard;
-
 dies_ok { PID::File::Guard->new( sub { } ) } "new dies ok in void context";
 
-lives_ok { $guard = PID::File::Guard->new( sub { } ) } "lives ok in scalar context";
+lives_ok { my $guard = PID::File::Guard->new( sub { } ) } "lives ok in scalar context";
+
+lives_ok { my @guard = PID::File::Guard->new( sub { } ) } "lives ok in list context";
 
 done_testing();

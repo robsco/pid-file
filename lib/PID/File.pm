@@ -12,15 +12,15 @@ use PID::File::Guard;
 
 =head1 NAME
 
-PID::File - PID files with guarding against exceptions.
+PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.12
+Version 0.13
 
 =cut
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -59,7 +59,7 @@ Or perhaps a bit more robust...
 
 Creating a pid file, or lock file, should be such a simple process.
 
-See L<Daemon::Control> for a more complete solution for creating daemons (and pid files)
+See L<Daemon::Control> for a more complete solution for creating daemons (and pid files).
 
 The code for this module was largely borrowed from there.
 
@@ -195,7 +195,7 @@ Returns a token that will call C<remove> when it goes out of scope.
 
 This deals with scenarios where your script may throw an exception before being able to remove the lock file.
 
-You must assign the return value of C<guard> to some token.
+You b<must> assign the return value of C<guard> to some token.
 
  if ( $pid_file->create )
  {
@@ -256,9 +256,10 @@ L<http://search.cpan.org/dist/PID-File/>
 
 =back
 
-=head1 ACKNOWLEDGEMENTS
+=head1 SEE ALSO
 
 L<Daemon::Control>
+
 L<Scope::Guard>
 
 =head1 LICENSE AND COPYRIGHT
