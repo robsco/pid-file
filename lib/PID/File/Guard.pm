@@ -17,9 +17,9 @@ PID::File::Guard - Provides scope guard to remove the pid file automatically.
 
 =head3 new
 
- my $guard = PID::File::Guard->new( $object, 'method' );
+ my $guard = PID::File::Guard->new( sub { $pid_file->remove } );
 
-Creates a new guard token that will call the C<method> on the C<object> when it goes out of scope. 
+Creates a new guard token that will call the supplied sub when it goes out of scope. 
 
 =cut
 
