@@ -1,0 +1,12 @@
+Changes
+lib/PID/File.pm
+Makefile.PL
+MANIFEST			This list of files
+README
+t/00-load.t
+t/01-clean.t
+t/02-filename.t
+t/03-filename-left.t
+t/04-filename-remains.t
+t/pod-coverage.t
+t/pod.t
