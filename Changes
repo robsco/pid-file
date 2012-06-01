@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.11    should always call remove even when using the guard
+
 0.10    more tests on filename checking
 
 0.09    condensed examples

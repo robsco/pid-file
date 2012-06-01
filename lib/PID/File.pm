@@ -16,11 +16,11 @@ PID::File - PID files with guarding against exceptions.
 
 =head1 VERSION
 
-Version 0.10
+Version 0.11
 
 =cut
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -53,7 +53,7 @@ Or perhaps a bit more robust...
  # if we get an exception at this point, the guard will go out
  # of scope, which calls $pid_file->remove() automatically
  
- $pid_file->remove;   # don't need to do this explicitly when using the guard mechanism
+ $pid_file->remove;
 
 =head1 DESCRIPTION
 
@@ -204,11 +204,9 @@ You must assign the return value of C<guard> to some token.
      # do something that could possibly die
      # before being able to call $pid_file->remove
      
-     # $pid_file->remove;   # no longer need to call this explicitly
+     $pid_file->remove;
  }
- 
- # $guard is now out of scope causing $pid_file->remove to be called automatically
- 
+
 =cut
 
 sub guard
