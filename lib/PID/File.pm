@@ -16,11 +16,11 @@ PID::File - PID files with guarding against exceptions.
 
 =head1 VERSION
 
-Version 0.08
+Version 0.10
 
 =cut
 
-our $VERSION = '0.08';
+our $VERSION = '0.10';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -31,24 +31,16 @@ Create PID files.
  
  my $pid_file = PID::File->new;
  
- if ( $pid_file->running )
- {
-     exit;
- }
- 
+ exit if $pid_file->running;
+
  if ( $pid_file->create )
  {
-     # do something with confidence here
- 
+     # do something
+      
      $pid_file->remove;
  }
- else
- {
-     # either someone got in there just before you
-     # or there's a serious file-system problem
- }
 
-Or a bit more robust...
+Or perhaps a bit more robust...
 
  while ( $pid_file->running || ! $pid_file->create )
  {
@@ -58,9 +50,10 @@ Or a bit more robust...
 
  my $guard = $pid_file->guard;
  
- # now do something, if we die at this point, the guard will call remove() automatically
+ # if we get an exception at this point, the guard will go out
+ # of scope, which calls $pid_file->remove() automatically
  
- $pid_file->remove;   # we don't really need to do this explicitly when using the guard mechanism
+ $pid_file->remove;   # don't need to do this explicitly when using the guard mechanism
 
 =head1 DESCRIPTION
 
@@ -208,12 +201,13 @@ You must assign the return value of C<guard> to some token.
  {
      my $guard = $pid_file->guard;
  
-     # do something, that could possibly die before being able to call $lock->remove
+     # do something that could possibly die
+     # before being able to call $pid_file->remove
      
      # $pid_file->remove;   # no longer need to call this explicitly
  }
  
- # $guard is now out of scope and $pid_file->remove was called automatically.
+ # $guard is now out of scope causing $pid_file->remove to be called automatically
  
 =cut
 

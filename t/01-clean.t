@@ -3,6 +3,8 @@ use warnings;
 
 use Test::More;
 use Test::Exception;
+use FindBin qw($Bin);
+use File::Basename qw(fileparse);
 
 use PID::File;
 
@@ -14,6 +16,16 @@ ok( ! $pid_file->running, "pid file is not running" );
 
 lives_ok { $pid_file->create; } "created pid file ok";
 
+my $expected_filename = '';
+{
+	my @filename = fileparse( $0 );
+	$expected_filename = $Bin . '/';
+	$expected_filename .= shift @filename;
+	$expected_filename .= '.pid';
+}
+	
+ok( $pid_file->file eq $expected_filename, "pid file is '" . $expected_filename . "' as expected");
+	
 ok( -e $pid_file->file, "pid file ('" . $pid_file->file . "') does exist");
 
 ok( $pid_file->running, "pid file is running (me)" );

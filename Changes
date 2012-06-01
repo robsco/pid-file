@@ -1,5 +1,9 @@
 Revision history for PID-File
 
+0.10    more tests on filename checking
+
+0.09    condensed examples
+
 0.08    yet more pod changes
 
 0.07    corrected guard pod
