@@ -8,17 +8,19 @@ use warnings;
 use File::Basename qw(fileparse);
 use FindBin qw($Bin);
 
+use PID::File::Guard;
+
 =head1 NAME
 
-PID::File - PID files, that just work.
+PID::File - PID files with guarding against exceptions.
 
 =head1 VERSION
 
-Version 0.01
+Version 0.08
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.08';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -33,26 +35,48 @@ Create PID files.
  {
      exit;
  }
+ 
+ if ( $pid_file->create )
+ {
+     # do something with confidence here
+ 
+     $pid_file->remove;
+ }
  else
  {
-     $pid_file->create;
+     # either someone got in there just before you
+     # or there's a serious file-system problem
  }
+
+Or a bit more robust...
+
+ while ( $pid_file->running || ! $pid_file->create )
+ {
+     print "Already running, sleeping for 2\n";
+     sleep 2;
+ }
+
+ my $guard = $pid_file->guard;
  
- # do some stuff
+ # now do something, if we die at this point, the guard will call remove() automatically
  
- $pid_file->remove;
- 
+ $pid_file->remove;   # we don't really need to do this explicitly when using the guard mechanism
+
 =head1 DESCRIPTION
 
-Creating a pid file, or lock file, should be such a simple process, unfortunately other modules on CPAN have bugs and are not being maintained.
+Creating a pid file, or lock file, should be such a simple process.
 
-See L<Daemon::Control> for a more complete solution for creating daemons (and pid files) - the code for this module was largely borrowed from there.
+See L<Daemon::Control> for a more complete solution for creating daemons (and pid files)
+
+The code for this module was largely borrowed from there.
 
 =head1 Methods
 
 =head2 Class Methods
 
 =head3 new
+
+ my $pid_file = PID::File->new;
 
 =cut
 
@@ -68,16 +92,17 @@ sub new
 	return $self;
 }
 
-
 =head2 Instance Methods
 
 =head3 file
 
 The filename for the pid file.
 
-Can be relative to the directory where your scripts runs, or absolute.
+ $pid_file->file( '/tmp/myapp.pid' );
 
-By default it will use the script name and append '.pid' to it.
+If you specify a relative path, it will be relative to where your scripts runs.
+
+By default it will use the script name and append C<.pid> to it.
 
 =cut
 
@@ -107,7 +132,9 @@ sub file
 
 =head3 create
 
-Create a new pid file.
+Attempt to create a new pid file.
+
+ if ( $pid_file->create )
 
 Returns true or false for whether the pid file was created.
 
@@ -121,13 +148,16 @@ sub create
 
 	return 0 if $self->running;
 
-	open my $fh, ">", $self->file or return 0;
-	print $fh $$;
-	close $fh;
+	open my $fh, '>', $self->file or return 0;
+	print $fh $$                  or return 0;
+	close $fh                     or return 0;
+	
 	return 1;
 }
 
 =head3 running
+
+ if ( $pid_file->running )
 
 Returns true or false to indicate whether the pid in the current pid file is running.
 
@@ -147,15 +177,15 @@ sub running
 	close $fh;
 
 	return kill 0, $pid;
-
 }
 
 =head3 remove
 
 Removes the pid file.
 
-=cut
+ $pid_file->remove;
 
+=cut
 
 sub remove
 {
@@ -164,6 +194,36 @@ sub remove
 	unlink $self->file;
 
 	return $self;
+}
+
+=head3 guard
+
+Returns a token that will call C<remove> when it goes out of scope.
+
+This deals with scenarios where your script may throw an exception before being able to remove the lock file.
+
+You must assign the return value of C<guard> to some token.
+
+ if ( $pid_file->create )
+ {
+     my $guard = $pid_file->guard;
+ 
+     # do something, that could possibly die before being able to call $lock->remove
+     
+     # $pid_file->remove;   # no longer need to call this explicitly
+ }
+ 
+ # $guard is now out of scope and $pid_file->remove was called automatically.
+ 
+=cut
+
+sub guard
+{
+	my $self = shift;
+	
+	die "Can't create guard in void context" if ! defined wantarray;
+	
+	return PID::File::Guard->new( $self, 'remove' );
 }
 
 =head1 AUTHOR
@@ -181,7 +241,6 @@ automatically be notified of progress on your bug as I make changes.
 You can find documentation for this module with the perldoc command.
 
     perldoc PID::File
-
 
 You can also look for information at:
 
@@ -205,10 +264,10 @@ L<http://search.cpan.org/dist/PID-File/>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
 L<Daemon::Control>
+L<Scope::Guard>
 
 =head1 LICENSE AND COPYRIGHT
 
@@ -219,7 +278,6 @@ under the terms of either: the GNU General Public License as published
 by the Free Software Foundation; or the Artistic License.
 
 See http://dev.perl.org/licenses/ for more information.
-
 
 =cut
 

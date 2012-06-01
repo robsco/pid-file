@@ -1,4 +1,18 @@
 Revision history for PID-File
 
+0.08    yet more pod changes
+
+0.07    corrected guard pod
+
+0.06    better tests
+
+0.05    scope guard feature added
+
+0.04    extra example with a while loop
+
+0.03    more pod
+
+0.02    pod updates
+
 0.01    1 June 2012 - Released
 
