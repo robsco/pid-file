@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.14    more tests for guard
+
 0.13    remove pod from guard
 
 0.12    guard takes sub ref
