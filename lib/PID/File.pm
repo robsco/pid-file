@@ -7,6 +7,7 @@ use warnings;
 
 use File::Basename qw(fileparse);
 use FindBin qw($Bin);
+use Scalar::Util qw(weaken);
 
 use PID::File::Guard;
 
@@ -16,11 +17,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 =cut
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -48,10 +49,9 @@ Or perhaps a bit more robust...
      sleep 2;
  }
 
- my $guard = $pid_file->guard;
+ $pid_file->guard;
  
- # if we get an exception at this point, the guard will go out
- # of scope, which calls $pid_file->remove() automatically
+ # if we get an exception at this point, $pid_file->remove() will be called automatically
  
  $pid_file->remove;
 
@@ -77,7 +77,8 @@ sub new
 {
 	my ( $class, %args ) = @_;
 	
-	my $self = { file => $args{ file },
+	my $self = { file  => $args{ file },
+	             guard => sub { },
 	           };
 	
 	bless( $self, $class );
@@ -133,6 +134,8 @@ Returns true or false for whether the pid file was created.
 
 If the file already exists, and the pid in that file is still running, no action will be taken and it will return false.
 
+You should really be using C<$pid_file->running> before using this call.
+
 =cut
 
 sub create
@@ -185,37 +188,62 @@ sub remove
 	my $self = shift;
 	
 	unlink $self->file;
+	
+	$self->{ guard } = sub { };
 
 	return $self;
 }
 
 =head3 guard
 
-Returns a token that will call C<remove> when it goes out of scope.
+This deals with scenarios where your script may throw an exception before you can remove the lock file yourself.
 
-This deals with scenarios where your script may throw an exception before being able to remove the lock file.
+When called in void context, this configures the C<$pid_file> object to call C<remove> automatically when it goes out of scope.
 
-You b<must> assign the return value of C<guard> to some token.
+ if ( $pid_file->create )
+ {
+     $pid_file->guard;
+ 
+     die;
+ }
+
+When called in either scalar or list context, it will return a token.  When that B<token> goes out of scope, C<remove> is called automatically.
+
+This can give you more control on when to automatically remove the pid file.
 
  if ( $pid_file->create )
  {
      my $guard = $pid_file->guard;
- 
-     # do something that could possibly die
-     # before being able to call $pid_file->remove
-     
-     $pid_file->remove;
  }
+ 
+ # remove() called automatically, even though $pid_file is still in scope
+
+Note, that if you call C<remove> yourself, the guard configuration will be reset, to save trying to remove the
+file again when the C<$pid_file> object finally goes out of scope naturally.
 
 =cut
 
 sub guard
 {
 	my $self = shift;
+
+	if ( ! defined wantarray )
+	{
+		weaken $self;   # prevent circular reference
+		
+		$self->{ guard } = sub { $self->remove };
+	}
+	else
+	{	
+		return PID::File::Guard->new( sub { $self->remove; } );
+	}
+}
+
+sub DESTROY
+{
+	my $self = shift;
 	
-	die "Can't create guard in void context" if ! defined wantarray;
-	
-	return PID::File::Guard->new( sub { $self->remove } ); # $self, 'remove' );
+	$self->{guard}->();
 }
 
 =head1 AUTHOR

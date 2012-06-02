@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.15    guard can now be stored internally when using void context
+
 0.14    more tests for guard
 
 0.13    remove pod from guard
