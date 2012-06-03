@@ -1,6 +1,8 @@
 Revision history for PID-File
 
-0.15    guard can now be stored internally when using void context
+0.16    3 June 2012 - Prevent removing and guarding pid files that weren't created by the current process
+
+0.15    guard can now set internally when using void context
 
 0.14    more tests for guard
 

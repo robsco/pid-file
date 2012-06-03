@@ -17,11 +17,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.15
+Version 0.16
 
 =cut
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -77,8 +77,9 @@ sub new
 {
 	my ( $class, %args ) = @_;
 	
-	my $self = { file  => $args{ file },
-	             guard => sub { },
+	my $self = { file     => $args{ file },
+	             _created => 0,
+	             guard    => sub { },
 	           };
 	
 	bless( $self, $class );
@@ -148,7 +149,16 @@ sub create
 	print $fh $$                  or return 0;
 	close $fh                     or return 0;
 	
+	$self->_created( 1 );
+	
 	return 1;
+}
+
+sub _created
+{
+	my $self = shift;	
+	$self->{ _created } = $_[0] if @_;
+	return $self->{ _created };
 }
 
 =head3 running
@@ -181,13 +191,25 @@ Removes the pid file.
 
  $pid_file->remove;
 
+You can only remove a pid file that was created by the current instance of this object.
+
+This is enforced by an internal object mechanism, and not the actual pid in the file.
+ 
+To force the removal of the pid file, supply C<force => 1> in the parameters...
+
+ $pid_file->remove( force => 1 ); 
+
 =cut
 
 sub remove
 {
-	my $self = shift;
+	my ( $self, %args ) = @_;
+	
+	die "Cannot remove pid file that wasn't created by this process" if ! $self->_created && ! $args{ force };
 	
 	unlink $self->file;
+	
+	$self->_created( 0 );
 	
 	$self->{ guard } = sub { };
 
@@ -221,16 +243,24 @@ This can give you more control on when to automatically remove the pid file.
 Note, that if you call C<remove> yourself, the guard configuration will be reset, to save trying to remove the
 file again when the C<$pid_file> object finally goes out of scope naturally.
 
+You can only guard a pid file that was created by the current instance of this object.  This is enforced by an internal object mechanism, and not the actual pid in the file.
+ 
+To force the guarding of the pid file, supply C<force => 1> in the parameters
+
+ $pid_file->guard( force => 1 ); 
+
 =cut
 
 sub guard
 {
-	my $self = shift;
+	my ( $self, %args ) = shift;
+
+	die "Cannot guard pid file that wasn't created by this process" if ! $self->_created && ! $args{ force };
 
 	if ( ! defined wantarray )
 	{
 		weaken $self;   # prevent circular reference
-		
+
 		$self->{ guard } = sub { $self->remove };
 	}
 	else
@@ -243,7 +273,7 @@ sub DESTROY
 {
 	my $self = shift;
 	
-	$self->{guard}->();
+	$self->{ guard }->();
 }
 
 =head1 AUTHOR
