@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.17    tests to override the defensive checks
+
 0.16    3 June 2012 - Prevent removing and guarding pid files that weren't created by the current process
 
 0.15    guard can now set internally when using void context
