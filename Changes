@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.21    Helper method merged with create
+
 0.20    Helper method for retries and sleep
 
 0.19    6 June 2012 - added pid() method to return pid in file (or undef)
