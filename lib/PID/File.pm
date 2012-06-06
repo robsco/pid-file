@@ -20,11 +20,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.21
+Version 0.24
 
 =cut
 
-our $VERSION = '0.21';
+our $VERSION = '0.24';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -58,18 +58,16 @@ Or perhaps a bit more robust...
  
  $pid_file->remove;
 
-Using a helper method...
+Using the built-in retry mechanism...
 
- if ( $pid_file->create_or_wait( retries => 10, sleep => 5 ) )
+ if ( ! $pid_file->create( retries => 10, sleep => 5 ) )
  {
-     # do something
-     
-     $pid_file->remove;
+     die "Could not create pid file after 10 attempts";
  }
- else
- {
-     # could not get lock
- }
+
+ # do something
+ 
+ $pid_file->remove;
 
 =head1 DESCRIPTION
 
@@ -277,7 +275,7 @@ You can only remove a pid file that was created by the current instance of this 
 
 This is enforced by an internal object mechanism, and not the actual pid in the file.
  
-To force the removal of the pid file, supply C<force => 1> in the parameters...
+To force the removal of the pid file, supply C<< force => 1 >> in the parameters...
 
  $pid_file->remove( force => 1 ); 
 
@@ -329,7 +327,7 @@ file again when the C<$pid_file> object finally goes out of scope naturally.
 
 You can only guard a pid file that was created by the current instance of this object.  This is enforced by an internal object mechanism, and not the actual pid in the file.
  
-To force the guarding of the pid file, supply C<force => 1> in the parameters
+To force the guarding of the pid file, supply C<< force => 1 >> in the parameters
 
  $pid_file->guard( force => 1 ); 
 

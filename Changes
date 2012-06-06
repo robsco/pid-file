@@ -1,5 +1,11 @@
 Revision history for PID-File
 
+0.24    more tiny pod
+
+0.23    tiny POD changes
+
+0.22    POD updates
+
 0.21    Helper method merged with create
 
 0.20    Helper method for retries and sleep
