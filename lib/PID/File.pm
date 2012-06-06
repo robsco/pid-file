@@ -11,17 +11,20 @@ use Scalar::Util qw(weaken);
 
 use PID::File::Guard;
 
+use constant DEFAULT_SLEEP   => 1;
+use constant DEFAULT_RETRIES => 0;
+
 =head1 NAME
 
 PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.17
+Version 0.20
 
 =cut
 
-our $VERSION = '0.17';
+our $VERSION = '0.20';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -55,6 +58,19 @@ Or perhaps a bit more robust...
  
  $pid_file->remove;
 
+Using a helper method...
+
+ if ( $pid_file->create_or_wait( retries => 10, sleep => 5 ) )
+ {
+     # do something
+     
+     $pid_file->remove;
+ }
+ else
+ {
+     # could not get lock
+ }
+
 =head1 DESCRIPTION
 
 Creating a pid file, or lock file, should be such a simple process.
@@ -77,9 +93,9 @@ sub new
 {
 	my ( $class, %args ) = @_;
 	
-	my $self = { file     => $args{ file },
-	             _created => 0,
-	             guard    => sub { },
+	my $self = { file      => $args{ file },
+	             _created  => 0,
+	             guard     => sub { },
 	           };
 	
 	bless( $self, $class );
@@ -135,11 +151,37 @@ Returns true or false for whether the pid file was created.
 
 If the file already exists, and the pid in that file is still running, no action will be taken and it will return false.
 
-You should really be using C<$pid_file->running> before using this call.
+If you supply the C<retries> parameter, it will retry that many times, sleeping for C<sleep> seconds (1 by default).
+
+ if ( ! $pid_file->create( retries => 5, sleep => 2 ) )
+ {
+     die "Could not create pid file";
+ }
 
 =cut
 
 sub create
+{
+	my ( $self, %args ) = @_;
+	
+	my $sleep   = $args{ sleep }   || DEFAULT_SLEEP;
+	my $retries = $args{ retries } || DEFAULT_RETRIES;
+		
+	my $attempts = 0;
+	
+	while (	! $self->_create )
+	{
+		$attempts ++;
+		
+		return 0 if $attempts > $retries;
+		
+		sleep $sleep;
+	}
+
+	return 1;
+}
+
+sub _create
 {
 	my $self = shift;
 
@@ -149,6 +191,8 @@ sub create
 	print $fh $$                  or return 0;
 	close $fh                     or return 0;
 	
+	$self->pid( $$ );
+
 	$self->_created( 1 );
 	
 	return 1;
@@ -161,6 +205,49 @@ sub _created
 	return $self->{ _created };
 }
 
+=head3 pid
+
+ $pid_file->pid
+
+Returns the pid in the pid file, if it exists, undef otherwise.
+
+=cut
+
+sub pid
+{
+	my $self = shift;
+	
+	$self->{ pid } = $_[0] if @_;
+	
+	return $self->{ pid };
+}
+
+sub _clear_pid
+{
+	my $self = shift;
+	
+	$self->{ pid } = undef;
+}
+
+sub _read
+{
+	my $self = shift;
+
+	if ( -f $self->file )
+	{
+		open my $fh, "<", $self->file or die "Failed to read " . $self->file . ": $!";
+		my $pid = do { local $/; <$fh> };
+		$self->pid( $pid );
+		close $fh;
+	}
+	else
+	{
+		$self->_clear_pid;
+	}
+	
+	return $self;
+}
+
 =head3 running
 
  if ( $pid_file->running )
@@ -171,18 +258,13 @@ Returns true or false to indicate whether the pid in the current pid file is run
 
 sub running
 {
-	my ( $self ) = @_;
+	my $self = shift;
 
-	if ( ! -f $self->file )
-	{
-		return 0;
-	}
+	$self->_read;
 
-	open my $fh, "<", $self->file or die "Failed to read " . $self->file . ": $!";
-	my $pid = do { local $/; <$fh> };
-	close $fh;
+	return 0 if ! $self->pid;
 
-	return kill 0, $pid;
+	return kill 0, $self->pid;
 }
 
 =head3 remove
@@ -208,6 +290,8 @@ sub remove
 	die "Cannot remove pid file that wasn't created by this process" if ! $self->_created && ! $args{ force };
 	
 	unlink $self->file;
+	
+	$self->_clear_pid;
 	
 	$self->_created( 0 );
 	

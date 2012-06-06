@@ -16,6 +16,8 @@ ok( ! $pid_file->running, "pid file is not running" );
 
 lives_ok { $pid_file->create; } "created pid file ok";
 
+ok( $pid_file->pid == $$, "pid is me" );
+
 my $expected_filename = '';
 {
 	my @filename = fileparse( $0 );
@@ -30,7 +32,11 @@ ok( -e $pid_file->file, "pid file ('" . $pid_file->file . "') does exist");
 
 ok( $pid_file->running, "pid file is running (me)" );
 
+ok( $pid_file->pid == $$, "pid is me" );
+
 lives_ok { $pid_file->remove; } "removed pid file ok";
+
+ok ( ! defined $pid_file->pid, "pid is now undef");
 
 ok( ! -e $pid_file->file, "pid file ('" . $pid_file->file . "') does not exist");
 
