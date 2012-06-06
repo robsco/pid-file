@@ -24,6 +24,6 @@ unlink $file;
 
 ok( $pid_file->create( retries => 2, sleep => 4 ), "could create pid file after waiting now" );
 
-#$pid_file->remove;
+$pid_file->remove;
 
 done_testing();
