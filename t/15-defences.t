@@ -21,11 +21,7 @@ use PID::File;
 
 	ok( $pid_file->create, "created pid file ok");
 
-	ok( $pid_file->_created, "pid file marked as created");
-	
 	lives_ok { $pid_file->remove; } "removed pid file ok";
-
-	ok( ! $pid_file->_created, "pid file marked as not created");
 
 	ok( ! -e $pid_file->file, "...and pid file ('" . $pid_file->file . "') does not exist");
 	

@@ -14,9 +14,9 @@ my $file;
 	ok( $pid_file->create, "created pid file ok");
 
 	lives_ok { $pid_file->guard; } "created guard ok in void context";
-	
+
 	$file = $pid_file->file;
-		
+
 	ok( -e $pid_file->file, "pid file ('" . $pid_file->file . "') does exist");
 }
 
