@@ -21,11 +21,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.24
+Version 0.27
 
 =cut
 
-our $VERSION = '0.24';
+our $VERSION = '0.27';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -33,15 +33,15 @@ $VERSION = eval $VERSION;
 Create PID files.
 
  use PID::File;
- 
+
  my $pid_file = PID::File->new;
- 
+
  exit if $pid_file->running;
 
  if ( $pid_file->create )
  {
      # do something
-      
+
      $pid_file->remove;
  }
 
@@ -54,9 +54,9 @@ Or perhaps a bit more robust...
  }
 
  $pid_file->guard;
- 
+
  # if we get an exception at this point, $pid_file->remove() will be called automatically
- 
+
  $pid_file->remove;
 
 Using the built-in retry mechanism...
@@ -67,7 +67,7 @@ Using the built-in retry mechanism...
  }
 
  # do something
- 
+
  $pid_file->remove;
 
 =head1 DESCRIPTION
@@ -91,14 +91,13 @@ The code for this module was largely borrowed from there.
 sub new
 {
 	my ( $class, %args ) = @_;
-	
+
 	my $self = { file      => $args{ file },
-	             _created  => 0,
-	             guard     => sub { },
+	             guard     => sub { return },
 	           };
-	
+
 	bless( $self, $class );
-	
+
 	return $self;
 }
 
@@ -119,7 +118,7 @@ By default it will use the script name and append C<.pid> to it.
 sub file
 {
 	my ( $self, $arg ) = @_;
-	
+
 	$self->{ file } = $arg if $arg;
 
 	if ( ! defined $self->{ file } )
@@ -129,14 +128,14 @@ sub file
 		$self->{ file } .= shift @filename;
 		$self->{ file } .= '.pid';
 	}
-	
+
 	# relative paths are made absolute, but to the scripts dir
-	
+
 	if ( $self->{ file } !~ m:^/: )
 	{
 		$self->{ file } = $Bin . '/' . $self->{ file };
 	}
-	
+
 	return $self->{ file };
 }
 
@@ -162,18 +161,18 @@ If you supply the C<retries> parameter, it will retry that many times, sleeping 
 sub create
 {
 	my ( $self, %args ) = @_;
-	
+
 	my $sleep   = $args{ sleep }   || DEFAULT_SLEEP;
 	my $retries = $args{ retries } || DEFAULT_RETRIES;
-		
+
 	my $attempts = 0;
-	
+
 	while (	! $self->_create )
 	{
 		$attempts ++;
-		
+
 		return 0 if $attempts > $retries;
-		
+
 		sleep $sleep;
 	}
 
@@ -187,7 +186,7 @@ sub _create
 	return 0 if $self->running;
 
 	my $fh;
-	
+
 	sysopen( $fh, $self->file, O_WRONLY | O_CREAT | O_TRUNC ) or return 0;
 
 	if ( ! flock( $fh, LOCK_EX | LOCK_NB ) )
@@ -196,12 +195,12 @@ sub _create
 		close $fh;
 		return 0;
 	}
-	
+
 	print $fh $$ or return 0;
 	close $fh    or return 0;
-	
+
 	$self->pid( $$ );
-	
+
 	return 1;
 }
 
@@ -209,16 +208,16 @@ sub _create
 
  $pid_file->pid
 
-Returns the pid in the pid file, if it exists, undef otherwise.
+Returns the pid in the pid file, if it exists.
 
 =cut
 
 sub pid
 {
 	my $self = shift;
-	
+
 	$self->{ pid } = $_[0] if @_;
-	
+
 	return $self->{ pid };
 }
 
@@ -235,7 +234,7 @@ sub running
 	my $self = shift;
 
 	my $fh;
-	
+
 	if ( ! sysopen( $fh, $self->file, O_RDWR ) )
 	{
 		$self->{ pid } = undef;
@@ -248,7 +247,7 @@ sub running
 		close $fh;
 		return 1;
 	}
-	
+
 	my $pid = do { local $/; <$fh> };
 	$self->pid( $pid ) if $pid =~ /^\d+$/;
 	close $fh;
@@ -277,18 +276,18 @@ To force the removal of the pid file, supply C<< force => 1 >> in the parameters
 sub remove
 {
 	my ( $self, %args ) = @_;
-	
+
 	if ( ! $args{ force } )
 	{
 		die "Unable to remove file for non-running process" if ! $self->running;
-		
+
 		die "Cannot remove pid file that wasn't created by this process" if $self->pid && $self->pid != $$;
 	}
-		
+
 	unlink $self->file;
-	
+
 	$self->{ pid } = undef;
-	
+
 	$self->{ guard } = sub { return };
 
 	return $self;
@@ -303,7 +302,7 @@ When called in void context, this configures the C<$pid_file> object to call C<r
  if ( $pid_file->create )
  {
      $pid_file->guard;
- 
+
      die;
  }
 
@@ -315,14 +314,14 @@ This can give you more control on when to automatically remove the pid file.
  {
      my $guard = $pid_file->guard;
  }
- 
+
  # remove() called automatically, even though $pid_file is still in scope
 
 Note, that if you call C<remove> yourself, the guard configuration will be reset, to save trying to remove the
 file again when the C<$pid_file> object finally goes out of scope naturally.
 
 You can only guard a pid file that was created by the current instance of this object.  This is enforced by an internal object mechanism, and not the actual pid in the file.
- 
+
 To force the guarding of the pid file, supply C<< force => 1 >> in the parameters
 
  $pid_file->guard( force => 1 ); 
@@ -349,7 +348,7 @@ sub guard
 		return $self;
 	}
 	else
-	{	
+	{
 		return PID::File::Guard->new( sub { $self->remove; } );
 	}
 }
@@ -357,7 +356,7 @@ sub guard
 sub DESTROY
 {
 	my $self = shift;
-	
+
 	$self->{ guard }->();
 }
 

@@ -1,5 +1,11 @@
 Revision history for PID-File
 
+0.27    whitespace cleaning
+
+0.26    cleanup
+
+0.25    mitigate race conditions
+
 0.24    more tiny pod
 
 0.23    tiny POD changes
