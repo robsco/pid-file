@@ -190,7 +190,7 @@ sub _create
 	
 	sysopen( $fh, $self->file, O_WRONLY | O_CREAT | O_TRUNC ) or return 0;
 
-	if ( ! flock( $fh, LOCK_EX ) )
+	if ( ! flock( $fh, LOCK_EX | LOCK_NB ) )
 	{
 		# unable to get lock, safer to assume it's running
 		close $fh;
@@ -242,7 +242,7 @@ sub running
 		return 0;
 	}
 
-	if ( ! flock( $fh, LOCK_EX ) )
+	if ( ! flock( $fh, LOCK_EX | LOCK_NB ) )
 	{
 		# file is locked, safer to assume it's running
 		close $fh;
@@ -278,16 +278,13 @@ sub remove
 {
 	my ( $self, %args ) = @_;
 	
-	if ( ! $self->running && ! $args{ force } )
+	if ( ! $args{ force } )
 	{
-		die "Unable to remove file for non-running process";
+		die "Unable to remove file for non-running process" if ! $self->running;
+		
+		die "Cannot remove pid file that wasn't created by this process" if $self->pid && $self->pid != $$;
 	}
-	
-	if ( $self->pid && $self->pid != $$ && ! $args{ force } )
-	{
-		die "Cannot remove pid file that wasn't created by this process";
-	}
-	
+		
 	unlink $self->file;
 	
 	$self->{ pid } = undef;
@@ -336,16 +333,13 @@ sub guard
 {
 	my ( $self, %args ) = shift;
 
-	if ( ! $self->running && ! $args{ force } )
+	if ( ! $args{ force } )
 	{
-		die "No running process to guard against";
+		die "No running process to guard against" if ! $self->running;
+
+		die "Unable to guard file not owned by this process" if $self->pid && $self->pid != $$;
 	}
-	
-	if ( $self->pid && $self->pid != $$ && ! $args{ force } )
-	{
-		die "Unable to guard file not owned by this process";
-	}
-	
+		
 	if ( ! defined wantarray )
 	{
 		weaken $self;   # prevent circular reference
