@@ -21,11 +21,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.27
+Version 0.28
 
 =cut
 
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -45,20 +45,6 @@ Create PID files.
      $pid_file->remove;
  }
 
-Or perhaps a bit more robust...
-
- while ( $pid_file->running || ! $pid_file->create )
- {
-     print "Already running, sleeping for 2\n";
-     sleep 2;
- }
-
- $pid_file->guard;
-
- # if we get an exception at this point, $pid_file->remove() will be called automatically
-
- $pid_file->remove;
-
 Using the built-in retry mechanism...
 
  if ( ! $pid_file->create( retries => 10, sleep => 5 ) )
@@ -76,7 +62,7 @@ Creating a pid file, or lock file, should be such a simple process.
 
 See L<Daemon::Control> for a more complete solution for creating daemons (and pid files).
 
-The code for this module was largely borrowed from there.
+If an exception is thrown (and the C<$pid_file> goes out of scope) the pid file will be cleaned up as part of Perls garbage collection.
 
 =head1 Methods
 
@@ -92,8 +78,9 @@ sub new
 {
 	my ( $class, %args ) = @_;
 
-	my $self = { file      => $args{ file },
-	             guard     => sub { return },
+	my $self = { file       => $args{ file },
+	             guard      => sub { return },
+	             guard_temp => sub { return },
 	           };
 
 	bless( $self, $class );
@@ -147,9 +134,9 @@ Attempt to create a new pid file.
 
 Returns true or false for whether the pid file was created.
 
-If the file already exists, and the pid in that file is still running, no action will be taken and it will return false.
+If the file already exists, no action will be taken and it will return false.
 
-If you supply the C<retries> parameter, it will retry that many times, sleeping for C<sleep> seconds (1 by default).
+If you supply the C<retries> parameter, it will retry that many times, sleeping for C<sleep> seconds (1 by default) between retries.
 
  if ( ! $pid_file->create( retries => 5, sleep => 2 ) )
  {
@@ -165,59 +152,62 @@ sub create
 	my $sleep   = $args{ sleep }   || DEFAULT_SLEEP;
 	my $retries = $args{ retries } || DEFAULT_RETRIES;
 
+	my $temp = $self->file . '.' . $$;
+
+	open( my $fh, '>', $temp ) or return 0;
+
+	$self->{ guard_temp } = sub { unlink $temp };
+
+	print $fh $$;
+	close $fh;
+
 	my $attempts = 0;
 
-	while (	! $self->_create )
+	while ( $attempts <= $retries )
 	{
+		if ( link( $temp, $self->file ) )
+		{
+			unlink $temp;
+			
+			$self->{ guard_temp } = sub { return };
+			
+			$self->pid( $$ );
+			$self->_created( 1 );
+			return 1;
+		}
+		
+		last if $attempts == $retries;
+		
 		$attempts ++;
-
-		return 0 if $attempts > $retries;
 
 		sleep $sleep;
 	}
+	
+	unlink $temp;
+	$self->{ guard_temp } = sub { return };
 
-	return 1;
+	return 0;
 }
 
-sub _create
+sub _created
 {
 	my $self = shift;
-
-	return 0 if $self->running;
-
-	my $fh;
-
-	sysopen( $fh, $self->file, O_WRONLY | O_CREAT | O_TRUNC ) or return 0;
-
-	if ( ! flock( $fh, LOCK_EX | LOCK_NB ) )
-	{
-		# unable to get lock, safer to assume it's running
-		close $fh;
-		return 0;
-	}
-
-	print $fh $$ or return 0;
-	close $fh    or return 0;
-
-	$self->pid( $$ );
-
-	return 1;
+	$self->{ _created } = $_[0] if @_;
+	return $self->{ _created };
 }
 
 =head3 pid
 
  $pid_file->pid
 
-Returns the pid in the pid file, if it exists.
+Returns the pid from the pid file, if it exists.
 
 =cut
 
 sub pid
 {
 	my $self = shift;
-
 	$self->{ pid } = $_[0] if @_;
-
 	return $self->{ pid };
 }
 
@@ -233,43 +223,28 @@ sub running
 {
 	my $self = shift;
 
-	my $fh;
+	$self->pid( undef );
 
-	if ( ! sysopen( $fh, $self->file, O_RDWR ) )
-	{
-		$self->{ pid } = undef;
-		return 0;
-	}
+	open( my $fh, $self->file ) or return 0;
+	my $pid = do { local $/; <$fh> };
+	close $fh or return 1;
 
-	if ( ! flock( $fh, LOCK_EX | LOCK_NB ) )
+	if ( kill 0, $pid )
 	{
-		# file is locked, safer to assume it's running
-		close $fh;
+		$self->pid( $pid );
 		return 1;
 	}
 
-	my $pid = do { local $/; <$fh> };
-	$self->pid( $pid ) if $pid =~ /^\d+$/;
-	close $fh;
-
-	return 0 if ! $self->pid;
-
-	return kill 0, $self->pid;
+	return 0;
 }
-
+	
 =head3 remove
 
 Removes the pid file.
 
  $pid_file->remove;
 
-You can only remove a pid file that was created by the current instance of this object.
-
-This is enforced by an internal object mechanism, and not the actual pid in the file.
- 
-To force the removal of the pid file, supply C<< force => 1 >> in the parameters...
-
- $pid_file->remove( force => 1 ); 
+You can only remove a pid file that was created by the current process.
 
 =cut
 
@@ -277,19 +252,13 @@ sub remove
 {
 	my ( $self, %args ) = @_;
 
-	if ( ! $args{ force } )
-	{
-		die "Unable to remove file for non-running process" if ! $self->running;
-
-		die "Cannot remove pid file that wasn't created by this process" if $self->pid && $self->pid != $$;
-	}
-
+	return $self if ! $self->_created;
+	
 	unlink $self->file;
-
-	$self->{ pid } = undef;
-
-	$self->{ guard } = sub { return };
-
+	$self->pid( undef );
+	$self->_created( 0 );
+	$self->{ guard } = sub { return };	
+	
 	return $self;
 }
 
@@ -320,11 +289,7 @@ This can give you more control on when to automatically remove the pid file.
 Note, that if you call C<remove> yourself, the guard configuration will be reset, to save trying to remove the
 file again when the C<$pid_file> object finally goes out of scope naturally.
 
-You can only guard a pid file that was created by the current instance of this object.  This is enforced by an internal object mechanism, and not the actual pid in the file.
-
-To force the guarding of the pid file, supply C<< force => 1 >> in the parameters
-
- $pid_file->guard( force => 1 ); 
+You can only guard a pid file that was created by the current process.
 
 =cut
 
@@ -332,24 +297,19 @@ sub guard
 {
 	my ( $self, %args ) = shift;
 
-	if ( ! $args{ force } )
-	{
-		die "No running process to guard against" if ! $self->running;
-
-		die "Unable to guard file not owned by this process" if $self->pid && $self->pid != $$;
-	}
-		
+	return if ! $self->_created;
+	
 	if ( ! defined wantarray )
 	{
-		weaken $self;   # prevent circular reference
-
-		$self->{ guard } = sub { $self->remove };
-		
-		return $self;
+		my $file = $self->file;
+		$self->{ guard } = sub { unlink $file };
 	}
-	else
+	else		
 	{
-		return PID::File::Guard->new( sub { $self->remove; } );
+		weaken $self;
+		my $guard = PID::File::Guard->new( sub { $self->remove } );
+		$self->{ guard } = sub{ return };
+		return $guard;
 	}
 }
 
@@ -357,6 +317,8 @@ sub DESTROY
 {
 	my $self = shift;
 
+	$self->{ guard_temp }->();
+	
 	$self->{ guard }->();
 }
 

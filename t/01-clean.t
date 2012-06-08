@@ -32,8 +32,6 @@ ok( -e $pid_file->file, "pid file ('" . $pid_file->file . "') does exist");
 
 ok( $pid_file->running, "pid file is running (me)" );
 
-ok( $pid_file->pid == $$, "pid is me" );
-
 lives_ok { $pid_file->remove; } "removed pid file ok";
 
 ok ( ! defined $pid_file->pid, "pid is now undef");

@@ -1,5 +1,7 @@
 Revision history for PID-File
 
+0.28    remove race conditions, auto guarding
+
 0.27    whitespace cleaning
 
 0.26    cleanup
