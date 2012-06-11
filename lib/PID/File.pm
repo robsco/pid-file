@@ -21,11 +21,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.28
+Version 0.29
 
 =cut
 
-our $VERSION = '0.28';
+our $VERSION = '0.29';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -40,6 +40,8 @@ Create PID files.
 
  if ( $pid_file->create )
  {
+	 $pid_file->guard;
+	 
      # do something
 
      $pid_file->remove;
@@ -62,7 +64,9 @@ Creating a pid file, or lock file, should be such a simple process.
 
 See L<Daemon::Control> for a more complete solution for creating daemons (and pid files).
 
-If an exception is thrown (and the C<$pid_file> goes out of scope) the pid file will be cleaned up as part of Perls garbage collection.
+After creating a pid file, if an exception is thrown (and the C<$pid_file> goes out of scope) the pid file would normally remain in place.
+
+If you call C<guard()> on the pid object after creation, it will remove the pid file automatically when it goes out of scope.  More on this later.
 
 =head1 Methods
 
@@ -116,7 +120,7 @@ sub file
 		$self->{ file } .= '.pid';
 	}
 
-	# relative paths are made absolute, but to the scripts dir
+	# relative paths are made absolute, to the script dir
 
 	if ( $self->{ file } !~ m:^/: )
 	{
@@ -132,7 +136,7 @@ Attempt to create a new pid file.
 
  if ( $pid_file->create )
 
-Returns true or false for whether the pid file was created.
+Returns true or false.
 
 If the file already exists, no action will be taken and it will return false.
 
@@ -142,6 +146,12 @@ If you supply the C<retries> parameter, it will retry that many times, sleeping 
  {
      die "Could not create pid file";
  }
+
+As a shortcut, you can also C<guard> the pid file by passing the C<guard> boolean as a parameter.
+
+ $pid_file->create( guard => 1 );
+
+See below for more details on the guard mechanism.
 
 =cut
 
@@ -168,21 +178,24 @@ sub create
 		if ( link( $temp, $self->file ) )
 		{
 			unlink $temp;
-			
+
 			$self->{ guard_temp } = sub { return };
-			
+
 			$self->pid( $$ );
 			$self->_created( 1 );
+
+			$self->guard if $args{ guard };
+
 			return 1;
 		}
-		
+
 		last if $attempts == $retries;
-		
+
 		$attempts ++;
 
 		sleep $sleep;
 	}
-	
+
 	unlink $temp;
 	$self->{ guard_temp } = sub { return };
 
@@ -200,7 +213,7 @@ sub _created
 
  $pid_file->pid
 
-Returns the pid from the pid file, if it exists.
+Stores the pid from the pid file, if one exists.  Could be undefined.
 
 =cut
 
@@ -244,7 +257,7 @@ Removes the pid file.
 
  $pid_file->remove;
 
-You can only remove a pid file that was created by the current process.
+You can only remove a pid file that was created by the same process.
 
 =cut
 
@@ -253,12 +266,12 @@ sub remove
 	my ( $self, %args ) = @_;
 
 	return $self if ! $self->_created;
-	
+
 	unlink $self->file;
 	$self->pid( undef );
 	$self->_created( 0 );
 	$self->{ guard } = sub { return };	
-	
+
 	return $self;
 }
 
@@ -275,9 +288,11 @@ When called in void context, this configures the C<$pid_file> object to call C<r
      die;
  }
 
-When called in either scalar or list context, it will return a token.  When that B<token> goes out of scope, C<remove> is called automatically.
+When called in either scalar or list context, it will return a single token.
 
-This can give you more control on when to automatically remove the pid file.
+When that B<token> goes out of scope, C<remove> is called automatically.
+
+This gives more control on when to automatically remove the pid file.
 
  if ( $pid_file->create )
  {
@@ -289,7 +304,7 @@ This can give you more control on when to automatically remove the pid file.
 Note, that if you call C<remove> yourself, the guard configuration will be reset, to save trying to remove the
 file again when the C<$pid_file> object finally goes out of scope naturally.
 
-You can only guard a pid file that was created by the current process.
+You can only guard a pid file that was created by the same process.
 
 =cut
 
@@ -298,15 +313,16 @@ sub guard
 	my ( $self, %args ) = shift;
 
 	return if ! $self->_created;
-	
+
+	weaken $self;
+
 	if ( ! defined wantarray )
 	{
-		my $file = $self->file;
-		$self->{ guard } = sub { unlink $file };
+		$self->{ guard } = sub { $self->remove };
+		return $self;
 	}
 	else		
 	{
-		weaken $self;
 		my $guard = PID::File::Guard->new( sub { $self->remove } );
 		$self->{ guard } = sub{ return };
 		return $guard;
@@ -318,7 +334,7 @@ sub DESTROY
 	my $self = shift;
 
 	$self->{ guard_temp }->();
-	
+
 	$self->{ guard }->();
 }
 
