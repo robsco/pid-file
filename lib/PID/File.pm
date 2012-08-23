@@ -5,7 +5,6 @@ use 5.006;
 use strict;
 use warnings;
 
-use Fcntl qw(:DEFAULT :flock);
 use File::Basename qw(fileparse);
 use FindBin qw($Bin);
 use Scalar::Util qw(weaken);
@@ -21,11 +20,11 @@ PID::File - PID files that guard against exceptions.
 
 =head1 VERSION
 
-Version 0.29
+Version 0.31
 
 =cut
 
-our $VERSION = '0.29';
+our $VERSION = '0.31';
 $VERSION = eval $VERSION;
 
 =head1 SYNOPSIS
@@ -40,8 +39,8 @@ Create PID files.
 
  if ( $pid_file->create )
  {
-	 $pid_file->guard;
-	 
+     $pid_file->guard;
+
      # do something
 
      $pid_file->remove;
@@ -250,7 +249,7 @@ sub running
 
 	return 0;
 }
-	
+
 =head3 remove
 
 Removes the pid file.
@@ -270,7 +269,7 @@ sub remove
 	unlink $self->file;
 	$self->pid( undef );
 	$self->_created( 0 );
-	$self->{ guard } = sub { return };	
+	$self->{ guard } = sub { return };
 
 	return $self;
 }
@@ -314,14 +313,12 @@ sub guard
 
 	return if ! $self->_created;
 
-	weaken $self;
-
 	if ( ! defined wantarray )
 	{
-		$self->{ guard } = sub { $self->remove };
+		$self->{ guard } = sub { 1 };
 		return $self;
 	}
-	else		
+	else
 	{
 		my $guard = PID::File::Guard->new( sub { $self->remove } );
 		$self->{ guard } = sub{ return };
@@ -335,7 +332,7 @@ sub DESTROY
 
 	$self->{ guard_temp }->();
 
-	$self->{ guard }->();
+    $self->remove if $self->{ guard }->();
 }
 
 =head1 AUTHOR
